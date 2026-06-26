@@ -1,0 +1,6 @@
+pika
+pillow
+dotenv
+boto3
+transformers 
+torch

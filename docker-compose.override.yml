@@ -1,0 +1,8 @@
+services:
+  sqlserver:
+    ports:
+      - "1433:1433"
+
+  rabbitmq:
+    ports:
+      - "15672:15672"

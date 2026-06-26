@@ -1,0 +1,60 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 5.0.x
+
+      - name: Restore API
+        run: dotnet restore "rest-api/Assignment4(1)/Assignment4/IMDBAPI.csproj"
+
+      - name: Build API
+        run: dotnet build "rest-api/Assignment4(1)/Assignment4/IMDBAPI.csproj" --configuration Release --no-restore
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 14
+          cache: npm
+          cache-dependency-path: vue-js/assignment/package-lock.json
+
+      - name: Build frontend
+        working-directory: vue-js/assignment
+        run: |
+          npm ci
+          npm run build
+
+      - name: Validate compose file
+        run: docker compose config
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ${{ secrets.EC2_APP_DIR }}
+            git pull origin main
+            docker compose up -d --build
+            docker system prune -f

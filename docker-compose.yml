@@ -1,0 +1,96 @@
+services:
+  api:
+    build:
+      context: ./rest-api/Assignment4(1)/Assignment4
+    container_name: movieverse-api
+    environment:
+      ASPNETCORE_URLS: http://+:5000
+      ConnectionStrings__IMDBDB: Server=sqlserver;Database=IMDB;User Id=sa;Password=${SQL_PASSWORD};TrustServerCertificate=True
+      ConnectionStrings__AccessKey: ${AWS_ACCESS_KEY_ID}
+      ConnectionStrings__SecretKey: ${AWS_SECRET_ACCESS_KEY}
+      ConnectionStrings__Region: ${AWS_REGION}
+      ConnectionStrings__Bucket: ${AWS_BUCKET_NAME}
+      RabbitMQ__HostName: rabbitmq
+      RabbitMQ__UserName: guest
+      RabbitMQ__Password: guest
+      Redis__ConnectionString: redis:6379
+      Jwt__Key: ${JWT_KEY}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      sqlserver:
+        condition: service_healthy
+    expose:
+      - "5000"
+
+  worker:
+    build:
+      context: ./workers
+    container_name: movieverse-worker
+    environment:
+      Access_Key: ${AWS_ACCESS_KEY_ID}
+      Secret_Key: ${AWS_SECRET_ACCESS_KEY}
+      Region: ${AWS_REGION}
+      Bucket: ${AWS_BUCKET_NAME}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./vue-js/assignment
+    container_name: movieverse-frontend
+    expose:
+      - "80"
+
+  nginx:
+    image: nginx:alpine
+    container_name: movieverse-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+      - frontend
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: movieverse-rabbitmq
+    expose:
+      - "5672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    container_name: movieverse-redis
+    expose:
+      - "6379"
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: movieverse-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${SQL_PASSWORD}
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  sqlserver-data:
