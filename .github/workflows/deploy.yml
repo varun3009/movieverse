@@ -44,7 +44,7 @@ jobs:
   deploy:
     needs: build-and-test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref_name == 'main'
 
     steps:
       - name: Deploy to EC2
@@ -54,7 +54,21 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -e
             cd ${{ secrets.EC2_APP_DIR }}
+
+            if [ ! -f .env ]; then
+              echo "Missing .env in ${{ secrets.EC2_APP_DIR }}"
+              exit 1
+            fi
+
+            if [ ! -f nginx/certs/fullchain.pem ] || [ ! -f nginx/certs/privkey.pem ]; then
+              echo "Missing TLS certificate files in ${{ secrets.EC2_APP_DIR }}/nginx/certs"
+              echo "Expected fullchain.pem and privkey.pem"
+              exit 1
+            fi
+
             git pull origin main
-            docker compose up -d --build
+            docker compose config
+            docker compose up -d --build --remove-orphans
             docker system prune -f
