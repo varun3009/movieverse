@@ -62,12 +62,6 @@ jobs:
               exit 1
             fi
 
-            if [ ! -f nginx/certs/fullchain.pem ] || [ ! -f nginx/certs/privkey.pem ]; then
-              echo "Missing TLS certificate files in ${{ secrets.EC2_APP_DIR }}/nginx/certs"
-              echo "Expected fullchain.pem and privkey.pem"
-              exit 1
-            fi
-
             git pull origin main
             docker compose config
             docker compose up -d --build --remove-orphans
